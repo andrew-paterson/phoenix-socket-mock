@@ -10,9 +10,10 @@
 <a name="module_phoenixMockSocket.initialise"></a>
 
 ### phoenixMockSocket.initialise(url, responsePayloadFunc)
-Starts the server socket connection at the url passed.
+Starts the server socket connection at the url passed, using mock-socket.
 Provides out of the box handling of the built in `phx_join` and `heartbeat` events.
 Responds to custom incoming messages from the client by applying the result of `responsePayloadFunc` argument
+Catches the "A mock server is already listening on this url" from mock-socket and logs a warning, but throws any other errors from mock-socket. This is because your testing framework may attempt to sockets connections to the same URL multiple times during a test run.
 
 **Kind**: static method of [<code>phoenixMockSocket</code>](#module_phoenixMockSocket)  
 

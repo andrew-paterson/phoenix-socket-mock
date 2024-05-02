@@ -3,9 +3,10 @@ import { Server } from 'mock-socket';
 
 export default {
   /**
- * Starts the server socket connection at the url passed.
+ * Starts the server socket connection at the url passed, using mock-socket.
  * Provides out of the box handling of the built in `phx_join` and `heartbeat` events.
  * Responds to custom incoming messages from the client by applying the result of `responsePayloadFunc` argument
+ * Catches the "A mock server is already listening on this url" from mock-socket and logs a warning, but throws any other errors from mock-socket. This is because your testing framework may attempt to sockets connections to the same URL multiple times during a test run.
  * @param url {string} - The url of the web socket connection to start. This should be the same as the url of the actual web socket connection that your client will attempt to join.
  * @param responsePayloadFunc {function} - Returns the payload to use in response to an incoming message from the client. Receives the incoming topic, eventName and payload as arguments, and must return the response payload in the form of an object.
  * @example
@@ -56,31 +57,45 @@ channel.on('my_event_name', (payload) => {
   console.log(payload); // First logs "Two fish", then "Blue fish"
 });
 */
-  initialise(url, responsePayloadFunc) {
-    const mockServer = new Server(url);
-    mockServer.on('connection', (socket) => {
-      this.socket = socket;
-      socket.on('message', (incomingMessage) => {
-        const incomingMessageObj = JSON.parse(incomingMessage);
-        const incomingTopic = incomingMessageObj[2];
-        const incomingEventName = incomingMessageObj[3];
-        const incomingPayload = incomingMessageObj[4];
-        let responsePayload;
-        let responseEventName;
-        if (['phx_join', 'heartbeat'].indexOf(incomingEventName) > -1) {
-          responseEventName = 'phx_reply';
-          responsePayload = {
-            response: {},
-            status: 'ok',
-          };
-        } else {
-          responseEventName = incomingMessageObj[3];
-          responsePayload = responsePayloadFunc(incomingTopic, incomingEventName, incomingPayload);
-        }
-        const response = this._generateResponse(incomingMessage, responseEventName, responsePayload);
-        socket.send(response);
+  initialise(
+    url,
+    responsePayloadFunc = () => {
+      return { response: {}, status: 'ok' };
+    }
+  ) {
+    try {
+      const mockServer = new Server(url);
+      console.log(mockServer.clients());
+      mockServer.on('connection', (socket) => {
+        this.socket = socket;
+        socket.on('message', (incomingMessage) => {
+          const incomingMessageObj = JSON.parse(incomingMessage);
+          const incomingTopic = incomingMessageObj[2];
+          const incomingEventName = incomingMessageObj[3];
+          const incomingPayload = incomingMessageObj[4];
+          let responsePayload;
+          let responseEventName;
+          if (['phx_join', 'heartbeat'].indexOf(incomingEventName) > -1) {
+            responseEventName = 'phx_reply';
+            responsePayload = {
+              response: {},
+              status: 'ok',
+            };
+          } else {
+            responseEventName = incomingMessageObj[3];
+            responsePayload = responsePayloadFunc(incomingTopic, incomingEventName, incomingPayload);
+          }
+          const response = this._generateResponse(incomingMessage, responseEventName, responsePayload);
+          socket.send(response);
+        });
       });
-    });
+    } catch (err) {
+      if (err.indexOf('A mock server is already listening on this url') > -1) {
+        console.warn(err);
+      } else {
+        throw err;
+      }
+    }
   },
 
   // https://hexdocs.pm/phoenix/writing_a_channels_client.html#message-format
