@@ -90,7 +90,7 @@ channel.on('my_event_name', (payload) => {
         });
       });
     } catch (err) {
-      if (err.indexOf('A mock server is already listening on this url') > -1) {
+      if ((err.message || '').indexOf('A mock server is already listening on this url') > -1) {
         console.warn(err);
       } else {
         throw err;
